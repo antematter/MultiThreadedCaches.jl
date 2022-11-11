@@ -116,6 +116,21 @@ function _thread_lock(cache::MultiThreadedCache, tid)
     return lock
 end
 
+function hit(cache::MultiThreadedCache{K,V}, key) where {K,V}
+    tid = Threads.threadid()
+    tcache = _thread_cache(cache, tid)
+    tlock = _thread_lock(cache, tid)
+
+    Base.@lock tlock begin
+        thread_local_cached_value_or_miss = get(tcache, key, CACHE_MISS)
+        return thread_local_cached_value_or_miss !== CACHE_MISS
+    end
+
+    @lock cache.base_cache_lock begin
+        value_or_miss = get(cache.base_cache, key, CACHE_MISS)
+        return value_or_miss !== CACHE_MISS
+    end
+end
 
 const CACHE_MISS = :__MultiThreadedCaches_key_not_found__
 
